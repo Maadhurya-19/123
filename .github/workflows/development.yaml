@@ -39,7 +39,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v2
         with:
-          node-version: "20.x"
+          node-version: "18.x"  # Updated Node.js version
 
       - name: Install Windows SDK
         run: Invoke-WebRequest -Uri https://aka.ms/winsdk/10/latest/SdkSetup.exe -OutFile $env:TEMP\SdkSetup.exe
@@ -50,13 +50,12 @@ jobs:
         with:
           dotnet-version: 3.1
 
-      - name: Install Rust 1.82.0
+      - name: Install Rust 1.65.0
         run: |
           Invoke-WebRequest -Uri https://static.rust-lang.org/rustup/dist/x86_64-pc-windows-msvc/rustup-init.exe -OutFile rustup-init.exe
           .\rustup-init.exe -y
-          rustup install 1.82.0
-          rustup default 1.82.0
-
+          rustup install 1.65.0  # Updated Rust version
+          rustup default 1.65.0
       - name: Update updater endpoint in tauri.conf.json file
         run: |
           $content = Get-Content apps/@sparrow-desktop/src-tauri/tauri.conf.json -Raw
@@ -73,7 +72,6 @@ jobs:
           npm install -g pnpm
           yarn install
           yarn desktop-build
-          # yarn tauri build --debug
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_KEY_PASSWORD }}
@@ -92,7 +90,6 @@ jobs:
            $password = ConvertTo-SecureString -String "sparrow123" -Force -AsPlainText
            Export-PfxCertificate -Cert $certPath -FilePath "D:\a\sparrow-app\sparrow-app\apps\@sparrow-desktop\src-tauri\target\debug\bundle\Certificate.pfx" -Password $password
            & "C:\Program Files (x86)\Windows Kits\10\bin\10.0.22621.0\x86\SignTool.exe" sign /f "D:\a\sparrow-app\sparrow-app\apps\@sparrow-desktop\src-tauri\target\debug\bundle\Certificate.pfx" /p sparrow123 /tr http://timestamp.digicert.com /td sha256 /fd sha256 /v "D:\a\sparrow-app\sparrow-app\apps\@sparrow-desktop\src-tauri\target\debug\bundle\msi\*.msi"
-
       - name: Install AWS CLI
         uses: chrislennon/action-aws-cli@v1.1
         with:
@@ -110,23 +107,22 @@ jobs:
   release_macos:
     runs-on: macos-latest
     environment: development
-    needs: release_win
+    needs: []  # Removed dependency on release_win to run independently
 
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v2
 
-      - name: Install Rust 1.82.0
+      - name: Install Rust 1.65.0
         run: |
           curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
-          rustup install 1.82.0
-          rustup default 1.82.0
+          rustup install 1.65.0  # Updated Rust version
+          rustup default 1.65.0
           rustup target add x86_64-apple-darwin
-
       - name: Sync node version and setup cache
         uses: actions/setup-node@v3
         with:
-          node-version: "20.8"
+          node-version: "18.x"  # Updated Node.js version
 
       - name: Update updater endpoint in tauri.conf.json file
         run: |
@@ -158,17 +154,14 @@ jobs:
       - name: file content
         run: |
           cat /Users/runner/work/sparrow-app/sparrow-app/apps/@sparrow-desktop/src-tauri/target/debug/bundle/macos/*.sig
-
       - name: Install AWS CLI
         run: |
           curl "https://awscli.amazonaws.com/AWSCLIV2.pkg" -o "AWSCLIV2.pkg"
           sudo installer -pkg AWSCLIV2.pkg -target /
           aws --version
-
       - name: Upload & download File to S3
         run: |
           aws s3 cp /Users/runner/work/sparrow-app/sparrow-app/apps/@sparrow-desktop/src-tauri/target/debug/bundle/macos s3://sparrow-release-assests-dev --recursive --exclude "*" --include "*.gz"
-
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
@@ -184,7 +177,6 @@ jobs:
       - name: Install App Center CLI
         run: |
           npm install -g appcenter-cli@latest
-
       - name: Get Branch Name
         id: pr_branch
         run: |
@@ -193,38 +185,10 @@ jobs:
           else
             echo "::set-output name=branch::${{ github.ref_name }}"
           fi
-
       - name: Upload to App Center
         run: |
           appcenter login --token ${{ secrets.APPCENTER_API_TOKEN }}
           branch_name="${{ steps.pr_branch.outputs.branch }}"
           echo "Branch Name: $branch_name"
-          appcenter distribute release -f /Users/runner/work/sparrow-app/sparrow-app/apps/@sparrow-desktop/src-tauri/target/debug/bundle/dmg/*.dmg -g Collaborators --app techdome/Sparrow-1 --build-version test-${branch_name} --build-number ${{ github.run_number }}
-          appcenter distribute release -f msi_files/*.msi -g Collaborators --app techdome/Sparrow --build-version test-${branch_name} --build-number ${{ github.run_number }}
-      - name: status check and upload
-        uses: neonidian/teams-notify-build-status@v3
-        if: always()
-        with:
-          webhookUrl: |
-            ${{ secrets.TEAMS_INCOMING_WEBHOOK_URL }}
-          message: |
-            🚀 **Build Status Update** 🚀
-            The workflow (sparrow-app for **Mac**) has completed with status: **${{ job.status }}**.
-            👉 Check it out latest release here [AppCenter](https://appcenter.ms/users/techdome/apps/Sparrow-mac)!
-          titleBackgroundColor: ${{ job.status }}
-        env:
-          SHOULD_DISPLAY_VIEW_COMMIT_BUTTON: true
+          appcenter distribute release -f /Users/runner/work/sparrow-app/sparrow-app/apps/@sparrow-desktop/src-tauri/target/debug/bundle/d
 
-      - name: status check and upload
-        uses: neonidian/teams-notify-build-status@v3
-        if: always()
-        with:
-          webhookUrl: |
-            ${{ secrets.TEAMS_INCOMING_WEBHOOK_URL }}
-          message: |
-            🚀 **Build Status Update** 🚀
-            The workflow (sparrow-app for windows) has completed with status: **${{ job.status }}**.
-            👉 Check it out latest release here [AppCenter](https://appcenter.ms/users/techdome/apps/Sparrow)!
-          titleBackgroundColor: ${{ job.status }}
-        env:
-          SHOULD_DISPLAY_VIEW_COMMIT_BUTTON: true
